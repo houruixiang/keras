@@ -1,30 +1,58 @@
-from keras.models import Sequential
-from keras.layers import Dense, Dropout, Activation
-from keras.optimizers import SGD
+'''
+Trains a multi-layer perceptron on the traces.
+According to the paper Breaking Cryptographic Implementations Using Deep Learning Techniques
+'''
 
-# Generate dummy data
 import numpy as np
 import keras
-x_train = np.random.random((1000, 20))
-y_train = keras.utils.to_categorical(np.random.randint(10, size=(1000, 1)), num_classes=10)
-x_test = np.random.random((100, 20))
-y_test = keras.utils.to_categorical(np.random.randint(10, size=(100, 1)), num_classes=10)
+from keras.models import Sequential
+from keras.layers import Dense, Dropout
+from keras.optimizers import RMSprop, SGD
 
+number_samples = 3253
+number_traces = 10000
+batch_size = 128
+num_classes = 9
+epochs = 12
+index = np.arange(number_traces)
+np.random.shuffle(index)
+
+traceset = np.load('convert0-10000.npz')
+data = traceset['value'][index]
+label = traceset['HW'][index]
+data = data.astype('float64')[:, :number_samples]
+data_train = data[0:8000, :]
+data_train -= np.mean(data, axis=0)
+data_train /= np.std(data, axis=0)
+label_train = keras.utils.to_categorical(label[0:8000], num_classes=num_classes)
+data_test = data[8000:, :]
+data_test -= np.mean(data, axis=0)
+data_test /= np.std(data, axis=0)
+label_test = keras.utils.to_categorical(label[8000:], num_classes=num_classes)
+
+# define Multilayer Perceptron, attention:the paper did not mention if there is a dropout layer
 model = Sequential()
-# Dense(64) is a fully-connected layer with 64 hidden units.
-# in the first layer, you must specify the expected input data shape:
-# here, 20-dimensional vectors.
-model.add(Dense(64, activation='relu', input_dim=20))
+# input layer,depends on samples per trace
+model.add(Dense(number_samples, activation='relu', input_shape=(number_samples,)))
 model.add(Dropout(0.5))
-model.add(Dense(64, activation='relu'))
+model.add(Dense(20, activation='relu'))
 model.add(Dropout(0.5))
-model.add(Dense(10, activation='softmax'))
-sgd = SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
+# model.add(Dense(20, activation='relu'))
+# model.add(Dropout(0.5))
+model.add(Dense(num_classes, activation='softmax'))
+
+model.summary()
+
+sgd = SGD(lr=0.1, decay=1e-6, momentum=0.9, nesterov=True)
 model.compile(loss='categorical_crossentropy',
-              optimizer=sgd,
+              optimizer=RMSprop(),  # we can also use optimizer sgd for a possible better result
               metrics=['accuracy'])
 
-model.fit(x_train, y_train,
-          epochs=20,
-          batch_size=128)
-score = model.evaluate(x_test, y_test, batch_size=128)
+model.fit(data_train, label_train,
+          batch_size=batch_size,
+          epochs=epochs,
+          verbose=1,
+          validation_data=(data_test, label_test))
+score = model.evaluate(data_test, label_test, verbose=0)
+print('Test loss:', score[0])
+print('Test accuracy:', score[1])

@@ -1,41 +1,46 @@
-'''Trains a simple convnet on the traces.
+'''
+Trains a simple convnet on the traces.
 According to the paper Breaking Cryptographic Implementations Using Deep Learning Techniques
 '''
 
-from __future__ import print_function
+import numpy as np
 import keras
 from keras.models import Sequential
-from keras.layers import Dense, Dropout, Flatten
+from keras.layers import Dense, Dropout, Flatten, Reshape
 from keras.layers import Conv2D, MaxPooling2D
 
-import numpy as np
-
-number_samples = 1000
-number_train = 250000
-number_test = 2500
+number_samples = 3249
+number_traces = 10000
 batch_size = 128
-num_classes = 256
+num_classes = 9
+kernel_size = (3, 3)
 epochs = 12
+index = np.arange(number_traces)
+np.random.shuffle(index)
 
-# Generate dummy data
+traceset = np.load('convert0-10000.npz')
+data = traceset['value'][index]
+label = traceset['HW'][index]
+data = data.astype('float64')[:, :number_samples]
+data_train = data[0:8000, :]
+data_train -= np.mean(data, axis=0)
+data_train /= np.std(data, axis=0)
+label_train = keras.utils.to_categorical(label[0:8000], num_classes=num_classes)
+data_test = data[8000:, :]
+data_test -= np.mean(data, axis=0)
+data_test /= np.std(data, axis=0)
+label_test = keras.utils.to_categorical(label[8000:], num_classes=num_classes)
 
-data_train = np.random.random((number_train, 32, 32, 1))
-data_test = np.random.random((number_test, 32, 32, 1))
-print(data_train.shape[0], 'train samples')
-print(data_test.shape[0], 'test samples')
-
-label_train = keras.utils.to_categorical(np.random.randint(num_classes, size=(number_train, 1)), num_classes)
-label_test = keras.utils.to_categorical(np.random.randint(num_classes, size=(number_test, 1)), num_classes)
-
-# define Convolutionnal Neural Network
+# define Convolutional Neural Network
 model = Sequential()
-model.add(Conv2D(8, kernel_size=(3, 3), padding='valid', activation='relu', input_shape=(32, 32, 1)))
-model.add(Conv2D(8, (3, 3), activation='relu'))
-model.add(Dropout(0.25))
+model.add(Reshape((57, 57, 1), input_shape=(number_samples,)))  # reshape data for convolutional layer
+model.add(Conv2D(8, kernel_size=kernel_size, padding='valid', activation='relu', input_shape=(57, 57, 1)))
+model.add(Conv2D(8, kernel_size, activation='relu'))
+model.add(Dropout(0.75))
 model.add(MaxPooling2D(pool_size=(2, 2)))
 
-model.add(Conv2D(8, (3, 3), activation='tanh'))
-model.add(Dropout(0.25))
+model.add(Conv2D(8, kernel_size, activation='relu'))
+model.add(Dropout(0.75))
 model.add(Flatten())
 model.add(Dense(num_classes, activation='softmax'))
 

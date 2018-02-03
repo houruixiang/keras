@@ -29,7 +29,9 @@ class trace(object):
     def showplt(self, label, y):
         x = np.arange(0, self.number_samples, 1)
         plt.figure(figsize=(100, 5))
+        plt.xlim(0, self.number_samples)
         plt.xlabel(label)
+        plt.grid(True)
         plt.plot(x, y)
         plt.show()
 

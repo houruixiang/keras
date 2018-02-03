@@ -1,46 +1,63 @@
-'''Trains a LSTM on the traces.
+'''
+Trains a LSTM on the traces.
 According to the paper Breaking Cryptographic Implementations Using Deep Learning Techniques
 '''
 
-from __future__ import print_function
-
-from keras.models import Sequential
-from keras.layers import Dense, Dropout
-from keras.layers import Embedding
-from keras.layers import LSTM
-
-import keras
 import numpy as np
+import keras
+from keras.preprocessing import sequence
+from keras.models import Sequential
+from keras.layers import Dense, Embedding, LSTM
+import matplotlib.pyplot as plt
 
-number_samples = 1000
-number_train = 250000
-number_test = 2500
-batch_size = 128
-num_classes = 10
-epochs = 20
+number_samples = 3253
+number_traces = 10000
+batch_size = 16
+num_classes = 9
+epochs = 10
+max_features = 3200
+index = np.arange(number_traces)
+np.random.shuffle(index)
 
-# Generate dummy data
 
-data_train = np.random.random((number_train, number_samples))
-data_test = np.random.random((number_test, number_samples))
-print(data_train.shape[0], 'train samples')
-print(data_test.shape[0], 'test samples')
+def showplt(y0, y1):
+    x = np.arange(0, number_samples, 1)
+    plt.figure(figsize=(100, 10))
+    plt.plot(x, y0, 'r', x, y1, 'b')
+    plt.savefig('result.png')
+    plt.show()
 
-label_train = keras.utils.to_categorical(np.random.randint(num_classes, size=(number_train, 1)), num_classes)
-label_test = keras.utils.to_categorical(np.random.randint(num_classes, size=(number_test, 1)), num_classes)
 
-max_features = 1001
+traceset = np.load('convert0-10000.npz')
+data = traceset['value'][index]
+label = traceset['HW'][index]
+data = data.astype('float64')
+data_train = data[0:8000, :]
+data_train -= np.mean(data, axis=0)
+data_train /= np.std(data, axis=0)
+label_train = keras.utils.to_categorical(label[0:8000], num_classes=9)
+data_test = data[8000:, :]
+data_test -= np.mean(data, axis=0)
+data_test /= np.std(data, axis=0)
+label_test = keras.utils.to_categorical(label[8000:], num_classes=9)
+
+data_train = sequence.pad_sequences(data_train, maxlen=max_features)
+data_test = sequence.pad_sequences(data_test, maxlen=max_features)
+data_train = data_train.reshape(8000, 40, 80)
+data_test = data_test.reshape(2000, 40, 80)
 
 # define Long and Short Term Memory
 model = Sequential()
-model.add(Embedding(max_features, output_dim=256))
+model.add(LSTM(26, return_sequences=True, input_shape=(40, 80)))
 model.add(LSTM(26))
-model.add(LSTM(26))
-model.add(Dense(1, activation='sigmoid'))
+# model.add(LSTM(26))
+model.add(Dense(num_classes, activation='sigmoid'))
 
 model.compile(loss='binary_crossentropy',
               optimizer='rmsprop',
               metrics=['accuracy'])
 
-model.fit(data_train, label_train, batch_size=16, epochs=10)
-score = model.evaluate(data_test, label_test, batch_size=16)
+model.fit(data_train, label_train, batch_size=batch_size, epochs=epochs)
+score = model.evaluate(data_test, label_test, batch_size=batch_size)
+print('Test loss:', score[0])
+print('Test accuracy:', score[1])
