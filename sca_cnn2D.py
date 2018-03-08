@@ -1,19 +1,19 @@
 '''
-Trains a stacked auto-encoder on the traces.
+Trains a simple convnet on the traces.
 According to the paper Breaking Cryptographic Implementations Using Deep Learning Techniques
 '''
 
 import numpy as np
 import keras
 from keras.models import Sequential
-from keras.layers import Dense
-from keras.optimizers import SGD
-import batch_read_data
+from keras.layers import Dense, Dropout, Flatten, Reshape
+from keras.layers import Conv2D, MaxPooling2D
 
 # import wechat_utils
-for number_samples in range(3253, 3254, 100):
+
+for number_samples in range(3249, 3250):
     print(number_samples)
-    start = 100
+    start = 0
     end = start + number_samples
     number_traces = 10000
     batch_size = 16
@@ -35,26 +35,29 @@ for number_samples in range(3253, 3254, 100):
     data_test = data[8000:number_traces, :]
     label_train = keras.utils.to_categorical(label[0:6000], num_classes=num_classes)
     label_val = keras.utils.to_categorical(label[6000:8000], num_classes=num_classes)
-    label_test = keras.utils.to_categorical(label[8000:number_traces], num_classes=num_classes)
+    label_test = keras.utils.to_categorical(label[8000:], num_classes=num_classes)
 
-    # define Stacked Auto-Encoder, attention:the paper did not mention if there is a dropout layer
+    # define Convolutional Neural Network
     model = Sequential()
-    # input layer,depends on samples per trace
-    model.add(Dense(number_samples, activation='relu', input_shape=(number_samples,)))
-    model.add(Dense(100, activation='relu'))
-    model.add(Dense(50, activation='relu'))
-    model.add(Dense(20, activation='relu'))
+    model.add(Reshape((57, 57, 1), input_shape=(number_samples,)))  # reshape data for convolutional layer
+    # model.add(Conv2D(8, kernel_size = (16, 16), padding='valid', activation='relu', input_shape=(57, 57, 1)))
+    model.add(Conv2D(8, kernel_size=(16, 16), padding='valid', activation='relu'))
+    model.add(Dropout(0.9))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+
+    model.add(Conv2D(8, kernel_size=(8, 8), activation='tanh'))
+    model.add(Dropout(0.9))
+    model.add(Flatten())
     model.add(Dense(num_classes, activation='softmax'))
 
     model.summary()
+    model.compile(loss='categorical_crossentropy', optimizer='rmsprop', metrics=['accuracy'])
 
-    sgd = SGD(lr=1e-2 , decay=1e-6, momentum=0.9, nesterov=True)
-    model.compile(loss='categorical_crossentropy',
-                  optimizer=sgd,  # we can also use optimizer sgd for a possible better result
-                  metrics=['accuracy'])
-    model.fit_generator(batch_read_data.generate_arrays_from_file_batch('data', (-1, 1), 256, 100, num_classes),
-                        verbose=1,
-                        epochs=epochs, steps_per_epoch=100)
+    model.fit(data_train, label_train,
+              batch_size=batch_size,
+              epochs=epochs,
+              verbose=2,
+              validation_data=(data_val, label_val))
     score = model.evaluate(data_test, label_test, verbose=2)
     print('Test loss:', score[0])
     print('Test accuracy:', score[1])

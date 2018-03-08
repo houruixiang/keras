@@ -1,5 +1,8 @@
 /data_acquisition
 /.idea
 /examples
-/*.npz
+*.npz
+*.h5
 test.py
+/data
+/dataset
